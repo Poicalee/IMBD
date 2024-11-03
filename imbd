@@ -35,6 +35,11 @@ CREATE TABLE Stations (
     latitude Decimal,
     longitude Decimal
 );
+INSERT INTO Stations (station_name, latitude, longitude)
+SELECT DISTINCT end_station_name, end_station_latitude, end_station_longitude
+FROM FullBikeTripData2
+WHERE end_station_name IS NOT NULL
+
 CREATE TABLE TripUsers (
     trip_id UInt32,                -- ID podróży (tworzony automatycznie)
     tripduration Int32,            -- Czas trwania podróży
