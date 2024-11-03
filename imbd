@@ -1,0 +1,68 @@
+1. uruchomienie kontynera dockera i utworzenie kopi folderu z danymi
+docker run -d --name clickhouse-server -p 8123:8123 -p 9000:9000 -v C:/xd:/data clickhouse/clickhouse-server
+
+201711-citybike-tripdata.csv_2
+
+
+wywalenie 1 wiersza z csv
+2. utworzenie tabeli ogólnej
+CREATE TABLE IF NOT EXISTS FullBikeTripData2 (
+    tripduration UInt32,
+    starttime DateTime,
+    stoptime DateTime,
+    start_station_id UInt32,
+    start_station_name FixedString(255),
+    start_station_latitude Decimal,
+    start_station_longitude Decimal,
+    end_station_id UInt32,
+    end_station_name FixedString(255),
+    end_station_latitude Decimal,
+    end_station_longitude Decimal,
+    bikeid UInt32,
+    usertype FixedString(255),
+    birth_year Decimal,
+    gender UInt32
+) ENGINE = MergeTree()
+ORDER BY (starttime, start_station_id);
+
+3. import danych do tabeli
+clickhouse-client -q "INSERT INTO FullBikeTripData2 FORMAT CSV" < /data/1tripdata.csv
+
+
+CREATE TABLE Stations (
+    station_id UInt32 PRIMARY KEY,
+    station_name FixedString(255),
+    latitude Decimal,
+    longitude Decimal
+);
+CREATE TABLE TripUsers (
+    trip_id UInt32,                -- ID podróży (tworzony automatycznie)
+    tripduration Int32,            -- Czas trwania podróży
+    starttime DateTime,            -- Czas rozpoczęcia
+    stoptime DateTime,             -- Czas zakończenia
+    start_station_id Int32,        -- ID stacji początkowej
+    start_station_name String,     -- Nazwa stacji początkowej
+    end_station_id Int32,          -- ID stacji końcowej
+    end_station_name String,       -- Nazwa stacji końcowej
+    bikeid Int32,                  -- ID roweru
+    birth_year Int32,              -- Rok urodzenia użytkownika
+    gender Int32,                  -- Płeć
+    usertype String                -- Typ użytkownika
+) ENGINE = MergeTree()
+ORDER BY trip_id;
+INSERT INTO TripUsers (trip_id, tripduration, starttime, stoptime, start_station_id, start_station_name, end_station_id, end_station_name, bikeid, birth_year, gender, usertype)
+SELECT 
+    ROW_NUMBER() OVER () AS trip_id,  -- Generowanie unikalnego ID dla każdego rekordu
+    tripduration,
+    starttime,
+    stoptime,
+    start_station_id,
+    start_station_name,
+    end_station_id,
+    end_station_name,
+    bikeid,
+    birth_year,
+    gender,
+    usertype
+FROM 
+    FullBikeTripData2;
