@@ -1,63 +1,70 @@
-1. uruchomienie kontynera dockera i utworzenie kopi folderu z danymi
-docker run -d --name clickhouse-server -p 8123:8123 -p 9000:9000 -v C:/xd:/data clickhouse/clickhouse-server
-
-201711-citybike-tripdata.csv_2
-
-
-wywalenie 1 wiersza z csv
-2. utworzenie tabeli ogólnej
+1.
 CREATE TABLE IF NOT EXISTS FullBikeTripData2 (
-    tripduration UInt32,
-    starttime DateTime,
-    stoptime DateTime,
-    start_station_id UInt32,
-    start_station_name FixedString(255),
-    start_station_latitude Decimal,
-    start_station_longitude Decimal,
-    end_station_id UInt32,
-    end_station_name FixedString(255),
-    end_station_latitude Decimal,
-    end_station_longitude Decimal,
-    bikeid UInt32,
-    usertype FixedString(255),
-    birth_year Decimal,
-    gender UInt32
-) ENGINE = MergeTree()
-ORDER BY (starttime, start_station_id);
-
-3. import danych do tabeli
-clickhouse-client -q "INSERT INTO FullBikeTripData2 FORMAT CSV" < /data/1tripdata.csv
-
+    tripduration INTEGER,
+    starttime TIMESTAMP,
+    stoptime TIMESTAMP,
+    start_station_id INTEGER,
+    start_station_name VARCHAR(255),
+    start_station_latitude NUMERIC,
+    start_station_longitude NUMERIC,
+    end_station_id INTEGER,
+    end_station_name VARCHAR(255),
+    end_station_latitude NUMERIC,
+    end_station_longitude NUMERIC,
+    bikeid INTEGER,
+    usertype VARCHAR(255),
+    birth_year NUMERIC,
+    gender INTEGER
+);
 
 CREATE TABLE Stations (
-    station_id UInt32 PRIMARY KEY,
-    station_name FixedString(255),
-    latitude Decimal,
-    longitude Decimal
+    station_id INTEGER PRIMARY KEY,
+    station_name VARCHAR(255),
+    latitude NUMERIC,
+    longitude NUMERIC
 );
-INSERT INTO Stations (station_name, latitude, longitude)
-SELECT DISTINCT end_station_name, end_station_latitude, end_station_longitude
-FROM FullBikeTripData2
-WHERE end_station_name IS NOT NULL
+
 
 CREATE TABLE TripUsers (
-    trip_id UInt32,                -- ID podróży (tworzony automatycznie)
-    tripduration Int32,            -- Czas trwania podróży
-    starttime DateTime,            -- Czas rozpoczęcia
-    stoptime DateTime,             -- Czas zakończenia
-    start_station_id Int32,        -- ID stacji początkowej
-    start_station_name String,     -- Nazwa stacji początkowej
-    end_station_id Int32,          -- ID stacji końcowej
-    end_station_name String,       -- Nazwa stacji końcowej
-    bikeid Int32,                  -- ID roweru
-    birth_year Int32,              -- Rok urodzenia użytkownika
-    gender Int32,                  -- Płeć
-    usertype String                -- Typ użytkownika
-) ENGINE = MergeTree()
-ORDER BY trip_id;
-INSERT INTO TripUsers (trip_id, tripduration, starttime, stoptime, start_station_id, start_station_name, end_station_id, end_station_name, bikeid, birth_year, gender, usertype)
+    trip_id SERIAL PRIMARY KEY,
+    tripduration INTEGER,
+    starttime TIMESTAMP,
+    stoptime TIMESTAMP,
+    start_station_id INTEGER,
+    start_station_name VARCHAR(255),
+    end_station_id INTEGER,
+    end_station_name VARCHAR(255),
+    bikeid INTEGER,
+    birth_year INTEGER,
+    gender INTEGER,
+    usertype VARCHAR(255)
+);
+
+2.
+IMPORT DANYCH Z CSV BikeTripData201711_csv1
+
+
+3.
+INSERT INTO Stations (station_id, station_name, latitude, longitude)
+SELECT DISTINCT 
+    start_station_id AS station_id,
+    start_station_name AS station_name,
+    start_station_latitude AS latitude,
+    start_station_longitude AS longitude
+FROM FullBikeTripData2
+WHERE start_station_id IS NOT NULL AND start_station_name IS NOT NULL
+UNION
+SELECT DISTINCT 
+    end_station_id AS station_id,
+    end_station_name AS station_name,
+    end_station_latitude AS latitude,
+    end_station_longitude AS longitude
+FROM FullBikeTripData2
+WHERE end_station_id IS NOT NULL AND end_station_name IS NOT NULL;
+
+
+INSERT INTO TripUsers (tripduration, starttime, stoptime, start_station_id, start_station_name, end_station_id, end_station_name, bikeid, birth_year, gender, usertype)
 SELECT 
-    ROW_NUMBER() OVER () AS trip_id,  -- Generowanie unikalnego ID dla każdego rekordu
     tripduration,
     starttime,
     stoptime,
@@ -71,3 +78,16 @@ SELECT
     usertype
 FROM 
     FullBikeTripData2;
+
+
+ALTER TABLE TripUsers
+ADD CONSTRAINT fk_start_station
+FOREIGN KEY (start_station_id) REFERENCES Stations(station_id),
+ADD CONSTRAINT fk_end_station
+FOREIGN KEY (end_station_id) REFERENCES Stations(station_id);
+
+4.
+DROP TABLE FullBikeTripData2
+
+
+
